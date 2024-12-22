@@ -1,0 +1,12 @@
+[package]
+name = "skycheats"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+crc = "*"
+num = "*"
+md-5 = "*"
+block-modes = "0.8"
+block-padding = "*"
+aes = "0.7.5"
