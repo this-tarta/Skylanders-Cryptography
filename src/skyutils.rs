@@ -54,7 +54,7 @@ fn key_a(bytes: &[u8]) -> u64 {
 }
 
 pub struct Skylander {
-    data: [u8; NUM_BYTES]
+    data: Box<[u8; NUM_BYTES]>
 }
 
 impl Skylander {
@@ -65,7 +65,7 @@ impl Skylander {
     /// - figure will have an nuid that is provided (default is 00 00 00 00).
     /// - figure will be reset, but ownership is not taken automatically when used.
     pub fn new(character: u16, variant: u16, nuid: Option<[u8; 4]>) -> Self {
-        let mut data = [0u8; NUM_BYTES];
+        let mut data = Box::new([0u8; NUM_BYTES]);
         let uid = match nuid {
             Some(v) => v,
             None => [0u8; 4]
@@ -120,7 +120,7 @@ impl Skylander {
     /// Saves the Skylander to a file
     /// Overwrites any data up to 1KB from seek start
     fn save_to_file(&self, file: &mut File) -> io::Result<()> {
-        let mut data = self.data.clone();
+        let mut data = *(self.data).clone();
         calculate_checksums(&mut data);
         encryption_skylander(&mut data, true);
         file.seek(io::SeekFrom::Start(0))?;
@@ -156,11 +156,11 @@ impl Skylander {
     /// Reads a Skylander from a file
     /// Does not verify the data integrity of the file
     pub fn from_filepath(path: &Path) -> io::Result<Self> {
-        let mut data = [0u8; NUM_BYTES];
+        let mut data = Box::new([0u8; NUM_BYTES]);
         let mut file = File::open(path)?;
-        file.read_exact(&mut data)?;
+        file.read_exact(&mut *data)?;
 
-        encryption_skylander(&mut data, false);
+        encryption_skylander(&mut *data, false);
 
         Ok(Self { data })
     }
