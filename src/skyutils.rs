@@ -75,7 +75,7 @@ impl Skylander {
             bcc ^= *i;
         }
     
-        data[0..4].copy_from_slice(&uid);
+        data[..4].copy_from_slice(&uid);
         data[4] = bcc;
     
         // SAK
@@ -92,7 +92,7 @@ impl Skylander {
         data[BLOCK_SIZE + 0xC..=BLOCK_SIZE + 0xD].copy_from_slice(&variant.to_le_bytes());
     
         let crc = crc::Crc::<u16>::new(&CRC16_CCITT_FALSE);
-        let checksum = crc.checksum(&data[0..0x1E]);
+        let checksum = crc.checksum(&data[..0x1E]);
         data[0x1E..=0x1F].copy_from_slice(&u16::to_le_bytes(checksum));
     
         // Sector 0 trailer
@@ -103,9 +103,9 @@ impl Skylander {
         for i in 1..NUM_SECTORS {
             let mut bytes = [0u8; 5];
             let curr_block = (i * BLOCKS_PER_SECTOR + (BLOCKS_PER_SECTOR - 1)) * BLOCK_SIZE;
-            bytes[0..4].copy_from_slice(&data[0..4]);
+            bytes[..4].copy_from_slice(&data[..4]);
             bytes[4] = i as u8;
-            let key_a = &u64::to_le_bytes(key_a(&bytes))[0..6];
+            let key_a = &u64::to_le_bytes(key_a(&bytes))[..6];
             data[curr_block..curr_block + 6].copy_from_slice(key_a);
             data[curr_block + 6..curr_block + 10].copy_from_slice(&[0x7F, 0x0F, 0x08, 0x69]);
         }
@@ -113,7 +113,13 @@ impl Skylander {
         // Area counters must be updated s.t. we can modify a new skylander directly
         data[0x89] = 0x01;
         data[0x112] = 0x01;
-    
+        
+        // To be considered in games after SSA
+        data[0x93] = 0x01;
+        data[0x96] = 0x01;
+        data[0x253] = 0x01;
+        data[0x256] = 0x01;
+        
         Self { data }
     }
 
@@ -203,11 +209,11 @@ impl Skylander {
         self.data[AREA_BOUNDS[0].0 ..= AREA_BOUNDS[0].0 + 0x1].copy_from_slice(&xp1_bytes);
         self.data[AREA_BOUNDS[1].0 ..= AREA_BOUNDS[1].0 + 0x1].copy_from_slice(&xp1_bytes);
 
-        self.data[AREA_BOUNDS[2].0 + 0x5 ..= AREA_BOUNDS[2].0 + 0x6].copy_from_slice(&xp2_bytes);
-        self.data[AREA_BOUNDS[3].0 + 0x5 ..= AREA_BOUNDS[3].0 + 0x6].copy_from_slice(&xp2_bytes);
+        self.data[AREA_BOUNDS[2].0 + 0x3 ..= AREA_BOUNDS[2].0 + 0x4].copy_from_slice(&xp2_bytes);
+        self.data[AREA_BOUNDS[3].0 + 0x3 ..= AREA_BOUNDS[3].0 + 0x4].copy_from_slice(&xp2_bytes);
         
-        self.data[AREA_BOUNDS[2].0 + 0x8 ..= AREA_BOUNDS[2].0 + 0xB].copy_from_slice(&xp3_bytes);
-        self.data[AREA_BOUNDS[3].0 + 0x8 ..= AREA_BOUNDS[3].0 + 0xB].copy_from_slice(&xp3_bytes);
+        self.data[AREA_BOUNDS[2].0 + 0x8 .. AREA_BOUNDS[2].0 + 0xB].copy_from_slice(&xp3_bytes[..3]);
+        self.data[AREA_BOUNDS[3].0 + 0x8 .. AREA_BOUNDS[3].0 + 0xB].copy_from_slice(&xp3_bytes[..3]);
     }
 
     /// Sets experience points of skylander to max
@@ -226,6 +232,12 @@ impl Skylander {
         // Area counters must be updated s.t. we can modify a cleared skylander directly
         self.data[AREA_BOUNDS[0].0 + 0x9] = 0x01;
         self.data[AREA_BOUNDS[2].0 + 0x2] = 0x01;
+
+        // To be considered in games after SSA
+        self.data[AREA_BOUNDS[0].0 + BLOCK_SIZE + 0x3] = 0x01;
+        self.data[AREA_BOUNDS[0].0 + BLOCK_SIZE + 0x6] = 0x01;
+        self.data[AREA_BOUNDS[1].0 + BLOCK_SIZE + 0x3] = 0x01;
+        self.data[AREA_BOUNDS[1].0 + BLOCK_SIZE + 0x6] = 0x01;
     }
 }
 
@@ -234,9 +246,9 @@ impl Skylander {
 /// - if encrypt is true, then the data in Sectors 1 through 15 (excl. sector trailers) will be encrypted,
 ///   decrypted if false
 /// writes in-place
-fn encryption_skylander(data: &mut [u8; NUM_BYTES], encrypt: bool) {
+pub fn encryption_skylander(data: &mut [u8; NUM_BYTES], encrypt: bool) {
     let mut seed = [0u8; 0x56];
-    seed[0..0x20].copy_from_slice(&data[0..0x20]);
+    seed[..0x20].copy_from_slice(&data[..0x20]);
     seed[0x21..].copy_from_slice(HASH_CONST);
 
     for i in 1..NUM_SECTORS {       
@@ -258,7 +270,7 @@ fn encryption_skylander(data: &mut [u8; NUM_BYTES], encrypt: bool) {
 }
 
 /// Calculates all checksums, writes in place to data array
-fn calculate_checksums(data: &mut [u8; NUM_BYTES]) {
+pub fn calculate_checksums(data: &mut [u8; NUM_BYTES]) {
     // Checksum placeholders
     data[0x8E] = 0x05;
     data[0x8F] = 0x00;
