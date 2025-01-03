@@ -12,6 +12,7 @@ use std::{fs::{self, File}, io::{self, Read, Seek, Write}, path::Path};
 
 use crate::skyfigures::Character;
 use crate::skyvariants::Variant;
+use crate::skyhats::Hat;
 
 type Aes128Ecb = Ecb<Aes128, ZeroPadding>;
 
@@ -177,7 +178,6 @@ impl Skylander {
     pub fn max_gold(&mut self) {
         self.set_gold(u16::MAX);
     }
-
     
     /// Sets experience points of the Skylander to specified value
     /// Max experience in Spyro's Adventure is 33000 (level 10)
@@ -219,6 +219,12 @@ impl Skylander {
         }
 
         write_ones(&mut *self.data);
+    }
+
+    /// Sets the hat on the Skylander
+    pub fn set_hat(&mut self, hat: Hat) {
+        self.data[0x94..=0x95].copy_from_slice(&(hat as u16).to_le_bytes());
+        self.data[0x254..=0x255].copy_from_slice(&(hat as u16).to_le_bytes());
     }
 }
 
@@ -308,6 +314,7 @@ pub fn calculate_checksums(data: &mut [u8; NUM_BYTES]) {
     data[0x2D0..=0x2D1].copy_from_slice(&crc.checksum(&type_6_seed).to_le_bytes()); // area 3
 }
 
+/// Calculates and sets the key A for each sector trailer
 fn calculate_key_a(data: &mut [u8; NUM_BYTES]) {
     // Sectors 1 through 15 trailers
     for i in 1..NUM_SECTORS {
