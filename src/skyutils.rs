@@ -5,12 +5,13 @@ use aes::Aes128;
 use block_modes::{block_padding::ZeroPadding, BlockMode};
 use block_modes::Ecb;
 use md_5::{Md5, Digest};
+use num::traits::ops::bytes;
 use std::cmp::min;
 use std::{u16, u32};
 use std::{fs::{self, File}, io::{self, Read, Seek, Write}, path::Path};
 
 
-use crate::skyfigures::Character;
+use crate::skyfigures::{Character, Expansion, ImaginatorCrystal, Item, Trap, Vehicle};
 use crate::skyvariants::Variant;
 use crate::skyhats::Hat;
 
@@ -178,6 +179,13 @@ impl Skylander {
     pub fn max_gold(&mut self) {
         self.set_gold(u16::MAX);
     }
+
+    /// Returns the gold of the Skylander
+    pub fn get_gold(&self) -> u16{
+        let mut bytes = [0u8; 2];
+        bytes.copy_from_slice(&self.data[AREA_BOUNDS[0].0 + 0x3..= AREA_BOUNDS[0].0 + 0x4]);
+        u16::from_le_bytes(bytes)
+    }
     
     /// Sets experience points of the Skylander to specified value
     /// Max experience in Spyro's Adventure is 33000 (level 10)
@@ -210,6 +218,45 @@ impl Skylander {
         self.set_xp(u32::MAX);
     }
 
+    /// Get the current experience of the Skylander
+    pub fn get_xp(&self) -> u32 {
+        let mut xp1_bytes = [0u8; 2];
+        let mut xp2_bytes = [0u8; 2];
+        let mut xp3_bytes = [0u8; 4];
+        
+        xp1_bytes.copy_from_slice(&self.data[AREA_BOUNDS[0].0 ..= AREA_BOUNDS[0].0 + 0x1]);
+        xp2_bytes.copy_from_slice(&self.data[AREA_BOUNDS[2].0 + 0x3 ..= AREA_BOUNDS[2].0 + 0x4]);
+        xp3_bytes[..3].copy_from_slice(&self.data[AREA_BOUNDS[2].0 + 0x8 .. AREA_BOUNDS[2].0 + 0xB]);
+
+        u16::from_le_bytes(xp1_bytes) as u32 + u16::from_le_bytes(xp2_bytes) as u32 + u32::from_le_bytes(xp3_bytes)
+    }
+
+    /// Get the current level of the skylander
+    pub fn get_level(&self) -> u8 {
+        static LEVELS: [i32; 21] = [-1, 0, 1000, 2200, 3800, 6000,
+                9000, 13000, 18200, 24800, 33000, 42700, 53900,
+                66600, 80800, 96500, 113700, 132400, 152600, 174300, 197500];
+        let xp = self.get_xp();
+        let mut level = 0;
+        let mut start = 0;
+        let mut end = LEVELS.len() - 1;
+
+        while (start <= end) {
+            let mid = end - (end - start) / 2;
+            if LEVELS[mid] < xp as i32 {
+                level = mid;
+                start = mid + 1;
+            } else if LEVELS[mid] == xp as i32 {
+                level = mid;
+                break;
+            } else {
+                end = mid - 1;
+            }
+        }
+
+        level as u8
+    }
+
     /// Clears all data from the skylander
     pub fn clear(&mut self) {
         for i in 1..NUM_SECTORS {
@@ -226,6 +273,112 @@ impl Skylander {
         self.data[0x94..=0x95].copy_from_slice(&(hat as u16).to_le_bytes());
         self.data[0x254..=0x255].copy_from_slice(&(hat as u16).to_le_bytes());
     }
+
+    /// Gets the hat of a Skylander, returns error if not a valid hat
+    pub fn get_hat(&self) -> Result<Hat, <Hat as TryFrom<u16>>::Error> {
+        let mut bytes = [0u8; 2];
+        bytes.copy_from_slice(&self.data[0x94..=0x95]);
+        Hat::try_from(u16::from_le_bytes(bytes))
+    }
+
+    /// Gets what the figure is; returns Unknown(u16) if it is not a
+    /// Character, Trap, Vehicle, Item, Expansion, or Imaginator Crystal
+    /// where u16 is the id of the figure
+    pub fn get_figure(&self) -> Toy {
+        let mut bytes = [0u8; 2];
+        bytes.copy_from_slice(&self.data[BLOCK_SIZE..=BLOCK_SIZE + 1]);
+        let id = u16::from_le_bytes(bytes);
+        match Character::try_from(id) {
+            Ok(c) => return Toy::Character(c),
+            _ => ()
+        };
+        match Trap::try_from(id) {
+            Ok(t) => return Toy::Trap(t),
+            _ => ()
+        };
+        match Vehicle::try_from(id) {
+            Ok(v) => return Toy::Vehicle(v),
+            _ => ()
+        };
+        match Item::try_from(id) {
+            Ok(i) => return Toy::Item(i),
+            _ => ()
+        };
+        match Expansion::try_from(id) {
+            Ok(e) => return Toy::Expansion(e),
+            _ => ()
+        }
+        match ImaginatorCrystal::try_from(id) {
+            Ok(i) => return Toy::ImaginatorCrystal(i),
+            _ => ()
+        }
+        Toy::Unknown(id)
+    }
+
+    /// Gets the Variant of a Skylander, returns error if not a valid Variant
+    pub fn get_variant(&self) -> Result<Variant, <Variant as TryFrom<u16>>::Error> {
+        let mut bytes = [0u8; 2];
+        bytes.copy_from_slice(&self.data[BLOCK_SIZE + 0xC..=BLOCK_SIZE + 0xD]);
+        Variant::try_from(u16::from_le_bytes(bytes))
+    }
+
+    /// Sets the upgrade path of the Skylander
+    /// Choices are from Top, Bottom, None
+    pub fn set_upgrade_path(&mut self, path: UpgradePath) {
+        self.data[AREA_BOUNDS[0].0 + BLOCK_SIZE] &= (0xFFu8 ^ 0b11u8);
+        self.data[AREA_BOUNDS[0].0 + BLOCK_SIZE] |= path as u8;
+        self.data[AREA_BOUNDS[1].0 + BLOCK_SIZE] &= (0xFFu8 ^ 0b11u8);
+        self.data[AREA_BOUNDS[1].0 + BLOCK_SIZE] |= path as u8;
+    }
+
+    /// Unlocks the wowpow for characters that have it
+    /// True for unlock, false for lock
+    pub fn set_wowpow(&mut self, set: bool) {
+        self.data[AREA_BOUNDS[2].0 + 0x6] = 0x01;
+        self.data[AREA_BOUNDS[3].0 + 0x6] = 0x01;
+    }
+
+    /// Unlocks upgrades according to bitmap (least significant bit to most significant)
+    pub fn set_upgrades(&mut self, bitmap: u8) {
+        let upgrade_path = match (self.data[AREA_BOUNDS[0].0 + BLOCK_SIZE] | self.data[AREA_BOUNDS[1].0 + BLOCK_SIZE]) & 0b11 {
+            0b01 => UpgradePath::Top,
+            0b11 => UpgradePath::Bottom,
+            _ => UpgradePath::None
+        };
+        let mut fullmap: u16 = 0;
+        fullmap = (bitmap as u16) << 2;
+        fullmap |= upgrade_path as u16;
+
+        const fn upgrade_loc(i: usize) -> usize {AREA_BOUNDS[i].0 + BLOCK_SIZE};
+        let bytes = fullmap.to_le_bytes();
+        self.data[upgrade_loc(0) .. upgrade_loc(0) + 2].copy_from_slice(&bytes);
+        self.data[upgrade_loc(1) .. upgrade_loc(1) + 2].copy_from_slice(&bytes);
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Toy {
+    Character(Character),
+    Trap(Trap),
+    Vehicle(Vehicle),
+    Item(Item),
+    Expansion(Expansion),
+    ImaginatorCrystal(ImaginatorCrystal),
+    Unknown(u16)
+}
+
+impl std::fmt::Display for Toy {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy)]
+pub enum UpgradePath {
+    Top = 0b01,
+    Bottom = 0b11,
+    None = 0b00
 }
 
 /// Encrypts or decrypts the 1K byte Skylander data. Does not check the validity of sector 0 data,

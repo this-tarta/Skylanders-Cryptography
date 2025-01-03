@@ -22,7 +22,7 @@ const fn make_index<S, T>() -> LazyLock<HashMap<S, T>>
 }
 
 #[repr(u16)]
-#[derive(Clone, Copy, Debug, EnumIter)]
+#[derive(Clone, Copy, Debug, EnumIter, PartialEq, Eq)]
 pub enum Character {
     // Spyro's
     Whirlwind = 0,
@@ -257,7 +257,7 @@ pub enum Character {
 }
 
 #[repr(u16)]
-#[derive(Clone, Copy, Debug, EnumIter)]
+#[derive(Clone, Copy, Debug, EnumIter, PartialEq, Eq)]
 pub enum Item {
     // Spyro's
     Anvil = 200,
@@ -292,7 +292,7 @@ pub enum Item {
 }
 
 #[repr(u16)]
-#[derive(Clone, Copy, Debug, EnumIter)]
+#[derive(Clone, Copy, Debug, EnumIter, PartialEq, Eq)]
 pub enum ImaginatorCrystal {
     Magic = 680,
     Water = 681,
@@ -307,7 +307,7 @@ pub enum ImaginatorCrystal {
 }
 
 #[repr(u16)]
-#[derive(Clone, Copy, Debug, EnumIter)]
+#[derive(Clone, Copy, Debug, EnumIter, PartialEq, Eq)]
 pub enum Trap {
     Magic = 210,
     Water = 211,
@@ -323,7 +323,7 @@ pub enum Trap {
 }
 
 #[repr(u16)]
-#[derive(Clone, Copy, Debug, EnumIter)]
+#[derive(Clone, Copy, Debug, EnumIter, PartialEq, Eq)]
 pub enum Expansion {
     // Spyro's
     Dragon = 300,
@@ -356,7 +356,7 @@ pub enum Expansion {
 }
 
 #[repr(u16)]
-#[derive(Clone, Copy, Debug, EnumIter)]
+#[derive(Clone, Copy, Debug, EnumIter, PartialEq, Eq)]
 pub enum Vehicle {
     Template = 4999,
     TemplateLand = 5999,

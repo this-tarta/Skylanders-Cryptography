@@ -11,7 +11,7 @@ static HAT_INDEX: LazyLock<HashMap<u16, Hat>> = LazyLock::new(|| {
 });
 
 #[repr(u16)]
-#[derive(Clone, Copy, Debug, EnumIter)]
+#[derive(Clone, Copy, Debug, EnumIter, PartialEq, Eq)]
 pub enum Hat {
     // Spyro's
 	None = 0,

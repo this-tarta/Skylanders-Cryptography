@@ -71,7 +71,7 @@ const fn get_variant(game: Game, decoid: DecoID, bf: u16) -> u16 {
 }
 
 #[repr(u16)]
-#[derive(Clone, Copy, Debug, EnumIter)]
+#[derive(Clone, Copy, Debug, EnumIter, PartialEq, Eq)]
 pub enum Variant {
     // Characters from Spyro's
     Series1 = get_variant(Game::Spyros, DecoID::Normal, VariantTypes::Default as u16),
@@ -138,6 +138,8 @@ pub enum Variant {
     SCLegendary = get_variant(Game::Superchargers, DecoID::Legendary, VariantTypes::AltDeco as u16 | VariantTypes::Supercharger as u16),
     VehicleLegendary = get_variant(Game::Superchargers, DecoID::Legendary, VariantTypes::AltDeco as u16),
     ImaginatorsLegendary = get_variant(Game::Imaginators, DecoID::Legendary, VariantTypes::AltDeco as u16)
+
+    // TODO: Add trap variants
 }
 
 impl TryFrom<u16> for Variant {
