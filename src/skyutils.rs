@@ -9,7 +9,7 @@ use num::traits::ops::bytes;
 use std::cmp::min;
 use std::{u16, u32};
 use std::{fs::{self, File}, io::{self, Read, Seek, Write}, path::Path};
-
+use mifare_utils::*;
 
 use crate::skyfigures::{Character, Expansion, ImaginatorCrystal, Item, Trap, Vehicle};
 use crate::skyvariants::Variant;
@@ -19,9 +19,10 @@ type Aes128Ecb = Ecb<Aes128, ZeroPadding>;
 
 const BLOCK_SIZE: usize = 16;
 const BLOCKS_PER_SECTOR: usize = 4;
+const SECTOR_SIZE: usize = BLOCK_SIZE * BLOCKS_PER_SECTOR;
 const NUM_SECTORS: usize = 16;
 /// The number of bytes that a Skylander figure (Mifare 1K NFC tag) stores
-const NUM_BYTES: usize = BLOCK_SIZE * BLOCKS_PER_SECTOR * NUM_SECTORS;
+const NUM_BYTES: usize = SECTOR_SIZE * NUM_SECTORS;
 
 /// AREA_BOUNDS[i] is the bounds [start, end) of area i
 static AREA_BOUNDS: [(usize, usize); 4] = [(0x80, 0x110), (0x240, 0x2D0), (0x110, 0x160), (0x2D0, 0x320)];
@@ -42,6 +43,12 @@ static CRC16_CCITT_FALSE: crc::Algorithm<u16> = crc::Algorithm {
     check: 0x29B1,
     residue: 0
 };
+static KEY_A_SECTOR_0: &[u8; 6] = &[0x4B, 0x0B, 0x20, 0x10, 0x7C, 0xCB];
+
+/// Map of level num to xp needed to achieve it
+static LEVELS: [i32; 21] = [-1, 0, 1000, 2200, 3800, 6000,
+        9000, 13000, 18200, 24800, 33000, 42700, 53900,
+        66600, 80800, 96500, 113700, 132400, 152600, 174300, 197500];
 
 /// Calculates key_a based on the game's unique CRC-48 checksum
 fn key_a(bytes: &[u8]) -> u64 {
@@ -104,8 +111,10 @@ impl Skylander {
         data[0x1E..=0x1F].copy_from_slice(&u16::to_le_bytes(checksum));
     
         // Sector 0 trailer
-        data[(3 * BLOCK_SIZE)..(3 * BLOCK_SIZE + 10)]
-            .copy_from_slice(&[0x4B, 0x0B, 0x20, 0x10, 0x7C, 0xCB, 0x0F, 0x0F, 0x0F, 0x69]);
+        data[(3 * BLOCK_SIZE)..(3 * BLOCK_SIZE + 6)]
+            .copy_from_slice(KEY_A_SECTOR_0);
+        data[(3 * BLOCK_SIZE + 6)..(3 * BLOCK_SIZE + 10)]
+            .copy_from_slice(&[0x0F, 0x0F, 0x0F, 0x69]);
     
 
         calculate_key_a(&mut data);
@@ -168,6 +177,62 @@ impl Skylander {
         Self::from_filepath(Path::new(filename))
     }
 
+    /// Reads a Skylander from nfc card (or figure itself)
+    /// Does not verify validity of the card -- Must be well-formed Skylander data
+    pub fn from_nfc() -> Result<Skylander, MifareError> {
+        let mut data = Box::new([0u8; NUM_BYTES]);
+        let connection = MifareReader::new()?;
+        let card = connection.connect(&connection.list_readers()?[0])?;
+
+        // Sector 0
+        card.authenticate_with_key(0, KEY_A_SECTOR_0, KeyType::KeyA)?;
+        data[..SECTOR_SIZE].copy_from_slice(&card.read_sector(0)?);
+        calculate_key_a(&mut *data);
+
+        for i in 1..NUM_SECTORS {
+            let mut key_a = [0u8; 6];
+            let sector_start = i * SECTOR_SIZE;
+            let sector_trailer = &data[sector_start + 3 * BLOCK_SIZE..sector_start + 3 * BLOCK_SIZE + 6];
+            key_a.copy_from_slice(sector_trailer);
+
+            card.authenticate_with_key((i * BLOCKS_PER_SECTOR) as u8, &key_a, KeyType::KeyA)?;
+            data[SECTOR_SIZE * i..SECTOR_SIZE * (i + 1) - BLOCK_SIZE]
+                .copy_from_slice(&card.read_sector(i as u8)?[..SECTOR_SIZE - BLOCK_SIZE]); // copy everything but trailer (not needed)
+        }
+
+        encryption_skylander(&mut *data, false);
+
+        Ok(Skylander { data })
+    }
+
+    /// Saves a Skylander from nfc card (or figure itself)
+    /// Does not verify validity of the card -- Must have well-formed Sector 0 and sector trailers
+    pub fn save_to_nfc(&self) -> Result<(), MifareError> {
+        let mut data = *(self.data).clone();
+        calculate_checksums(&mut data);
+        encryption_skylander(&mut data, true);
+
+        let connection = MifareReader::new()?;
+        let card = connection.connect(&connection.list_readers()?[0])?;
+
+        for i in 1..NUM_SECTORS {
+            let mut key_a = [0u8; 6];
+            let sector_start = i * SECTOR_SIZE;
+            let sector_trailer = &data[sector_start + 3 * BLOCK_SIZE..sector_start + 3 * BLOCK_SIZE + 6];
+            key_a.copy_from_slice(sector_trailer);
+
+            for j in 0..BLOCKS_PER_SECTOR - 1 {
+                let block = (i * BLOCKS_PER_SECTOR + j);
+                let mut copy = [0u8; BLOCK_SIZE];
+                copy.copy_from_slice(&data[block * BLOCK_SIZE..(block + 1) * BLOCK_SIZE]);
+                card.authenticate_with_key(block as u8, &key_a, KeyType::KeyA)?;
+                card.write_block(block as u8, &copy)?;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Sets gold of the Skylander to a specified value
     /// Note that in-game, the gold is capped at 65000
     pub fn set_gold(&mut self, gold: u16) {
@@ -218,6 +283,13 @@ impl Skylander {
         self.set_xp(u32::MAX);
     }
 
+    /// Sets the level of the Skylander
+    /// level must be in [1, 20]
+    pub fn set_level(&mut self, level: u8) {
+        assert!(level >= 1 && level <= 20);
+        self.set_xp(LEVELS[level as usize] as u32);
+    }
+
     /// Get the current experience of the Skylander
     pub fn get_xp(&self) -> u32 {
         let mut xp1_bytes = [0u8; 2];
@@ -233,9 +305,6 @@ impl Skylander {
 
     /// Get the current level of the skylander
     pub fn get_level(&self) -> u8 {
-        static LEVELS: [i32; 21] = [-1, 0, 1000, 2200, 3800, 6000,
-                9000, 13000, 18200, 24800, 33000, 42700, 53900,
-                66600, 80800, 96500, 113700, 132400, 152600, 174300, 197500];
         let xp = self.get_xp();
         let mut level = 0;
         let mut start = 0;
@@ -260,7 +329,7 @@ impl Skylander {
     /// Clears all data from the skylander
     pub fn clear(&mut self) {
         for i in 1..NUM_SECTORS {
-            let sector_start = i * BLOCKS_PER_SECTOR * BLOCK_SIZE;
+            let sector_start = i * SECTOR_SIZE;
             let sector_trailer = sector_start + (BLOCKS_PER_SECTOR - 1) * BLOCK_SIZE;
             self.data[sector_start..sector_trailer].copy_from_slice(&[0u8; (BLOCKS_PER_SECTOR - 1) * BLOCK_SIZE]);
         }
