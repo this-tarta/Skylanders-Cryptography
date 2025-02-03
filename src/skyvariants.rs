@@ -137,9 +137,42 @@ pub enum Variant {
     TTNewLegendary = get_variant(Game::TrapTeam, DecoID::Legendary, VariantTypes::AltDeco as u16),
     SCLegendary = get_variant(Game::Superchargers, DecoID::Legendary, VariantTypes::AltDeco as u16 | VariantTypes::Supercharger as u16),
     VehicleLegendary = get_variant(Game::Superchargers, DecoID::Legendary, VariantTypes::AltDeco as u16),
-    ImaginatorsLegendary = get_variant(Game::Imaginators, DecoID::Legendary, VariantTypes::AltDeco as u16)
+    ImaginatorsLegendary = get_variant(Game::Imaginators, DecoID::Legendary, VariantTypes::AltDeco as u16),
 
-    // TODO: Add trap variants
+    // Trap Variants
+    TikiTrap = 0x3001,
+    LogHolderTrap = 0x3002,
+    ToucanTrap = 0x3003,
+    OrbTrap = 0x3004,
+    TorchTrap = 0x3005,
+    JugheadTrap = 0x3006,
+    AngelTrap = 0x3007,
+    SkullTrap = 0x3008,
+    ScepterTrap = 0x3009,
+    HammerTrap = 0x300A,
+    AxeTrap = 0x300B,
+    HandTrap = 0x300C,
+    UnknownTrap1 = 0x300D,
+    HourglassTrap = 0x300E,
+    HawkTrap = 0x300F,
+    SnakeTrap = 0x3010,
+    ScreamerTrap = 0x3011,
+    TotemTrap = 0x3012,
+    SpiderTrap = 0x3014,
+    RocketTrap = 0x3015,
+    FlyingHelmentTrap = 0x3016,
+    CaptainHatTrap = 0x3017,
+    SwordTrap = 0x3018,
+    HandstandTrap = 0x301A,
+    YawnTrap = 0x301B,
+    UnknownTrap2 = 0x301C,
+    UnknownTrap3 = 0x301D,
+    KaosTrap = 0x301E,
+    
+    LegendaryOrb = 0x3404,
+    LegendaryJughead = 0x3406,
+    LegendarySkull = 0x3408,
+    UltimateKaosTrap = 0x351F,
 }
 
 impl TryFrom<u16> for Variant {
