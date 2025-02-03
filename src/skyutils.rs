@@ -69,7 +69,9 @@ fn key_a(bytes: &[u8]) -> u64 {
 }
 
 pub struct Skylander {
-    data: Box<[u8; NUM_BYTES]>
+    data: Box<[u8; NUM_BYTES]>,
+    used: [bool; NUM_SECTORS],
+    modified: bool
 }
 
 impl Skylander {
@@ -118,17 +120,20 @@ impl Skylander {
     
 
         calculate_key_a(&mut data);
-        write_ones(&mut data);
+        let mut used = [false; NUM_SECTORS];
+        used[0] = true;
         
-        Self { data }
+        Self { data, used, modified: false }
     }
 
     /// Saves the Skylander to a file
     /// Overwrites any data up to 1KB from seek start
     fn save_to_file(&self, file: &mut File) -> io::Result<()> {
         let mut data = *(self.data).clone();
-        calculate_checksums(&mut data);
-        encryption_skylander(&mut data, true);
+        if self.modified {
+            calculate_checksums(&mut data);
+        }
+        encryption_skylander(&mut data, &self.used, true);
         file.seek(io::SeekFrom::Start(0))?;
         file.write_all(&data)?;
 
@@ -165,10 +170,10 @@ impl Skylander {
         let mut data = Box::new([0u8; NUM_BYTES]);
         let mut file = File::open(path)?;
         file.read_exact(&mut *data)?;
+        let used = update_used(& *data);
+        encryption_skylander(&mut *data, &used, false);
 
-        encryption_skylander(&mut *data, false);
-
-        Ok(Self { data })
+        Ok(Self { data , used, modified: true})
     }
 
     /// Reads a Skylander from a file
@@ -179,7 +184,7 @@ impl Skylander {
 
     /// Reads a Skylander from nfc card (or figure itself)
     /// Does not verify validity of the card -- Must be well-formed Skylander data
-    pub fn from_nfc() -> Result<Skylander, MifareError> {
+    pub fn from_nfc() -> Result<Self, MifareError> {
         let mut data = Box::new([0u8; NUM_BYTES]);
         let connection = MifareReader::new()?;
         let card = connection.connect(&connection.list_readers()?[0])?;
@@ -200,17 +205,20 @@ impl Skylander {
                 .copy_from_slice(&card.read_sector(i as u8)?[..SECTOR_SIZE - BLOCK_SIZE]); // copy everything but trailer (not needed)
         }
 
-        encryption_skylander(&mut *data, false);
+        let used = update_used(& *data);
+        encryption_skylander(&mut *data, &used, false);
 
-        Ok(Skylander { data })
+        Ok(Self { data , used, modified: false })
     }
 
     /// Saves a Skylander from nfc card (or figure itself)
     /// Does not verify validity of the card -- Must have well-formed Sector 0 and sector trailers
     pub fn save_to_nfc(&self) -> Result<(), MifareError> {
         let mut data = *(self.data).clone();
-        calculate_checksums(&mut data);
-        encryption_skylander(&mut data, true);
+        if self.modified {
+            calculate_checksums(&mut data);
+        }
+        encryption_skylander(&mut data, &self.used, true);
 
         let connection = MifareReader::new()?;
         let card = connection.connect(&connection.list_readers()?[0])?;
@@ -236,6 +244,11 @@ impl Skylander {
     /// Sets gold of the Skylander to a specified value
     /// Note that in-game, the gold is capped at 65000
     pub fn set_gold(&mut self, gold: u16) {
+        self.used[AREA_BOUNDS[0].0 / SECTOR_SIZE] = true;
+        self.used[AREA_BOUNDS[1].0  / SECTOR_SIZE] = true;
+        write_ones(&mut *self.data);
+        self.modified = true;
+
         self.data[AREA_BOUNDS[0].0 + 0x3..= AREA_BOUNDS[0].0 + 0x4].copy_from_slice(&gold.to_le_bytes());
         self.data[AREA_BOUNDS[1].0 + 0x3..= AREA_BOUNDS[1].0 + 0x4].copy_from_slice(&gold.to_le_bytes());
     }
@@ -258,6 +271,13 @@ impl Skylander {
     ///                in Swap Force and beyond is 197500 (level 20)
     /// This function will take min(xp, 197500)
     pub fn set_xp(&mut self, xp: u32) {
+        self.used[AREA_BOUNDS[0].0 / SECTOR_SIZE] = true;
+        self.used[AREA_BOUNDS[1].0  / SECTOR_SIZE] = true;
+        self.used[AREA_BOUNDS[2].0  / SECTOR_SIZE] = true;
+        self.used[AREA_BOUNDS[3].0  / SECTOR_SIZE] = true;
+        write_ones(&mut *self.data);
+        self.modified = true;
+        
         let xp1 = min(xp, 33000);
         let xp2 = min(xp - xp1, 63500);
         let xp3 = min(xp - xp1 - xp2, 101000);
@@ -334,11 +354,17 @@ impl Skylander {
             self.data[sector_start..sector_trailer].copy_from_slice(&[0u8; (BLOCKS_PER_SECTOR - 1) * BLOCK_SIZE]);
         }
 
-        write_ones(&mut *self.data);
+        self.used = [false; NUM_SECTORS];
+        self.used[0] = true;
     }
 
     /// Sets the hat on the Skylander
     pub fn set_hat(&mut self, hat: Hat) {
+        self.used[0x94 / SECTOR_SIZE] = true;
+        self.used[0x254 / SECTOR_SIZE] = true;
+        write_ones(&mut *self.data);
+        self.modified = true;
+        
         self.data[0x94..=0x95].copy_from_slice(&(hat as u16).to_le_bytes());
         self.data[0x254..=0x255].copy_from_slice(&(hat as u16).to_le_bytes());
     }
@@ -394,6 +420,11 @@ impl Skylander {
     /// Sets the upgrade path of the Skylander
     /// Choices are from Top, Bottom, None
     pub fn set_upgrade_path(&mut self, path: UpgradePath) {
+        self.used[AREA_BOUNDS[0].0 / SECTOR_SIZE] = true;
+        self.used[AREA_BOUNDS[1].0 / SECTOR_SIZE] = true;
+        write_ones(&mut *self.data);
+        self.modified = true;
+        
         self.data[AREA_BOUNDS[0].0 + BLOCK_SIZE] &= (0xFFu8 ^ 0b11u8);
         self.data[AREA_BOUNDS[0].0 + BLOCK_SIZE] |= path as u8;
         self.data[AREA_BOUNDS[1].0 + BLOCK_SIZE] &= (0xFFu8 ^ 0b11u8);
@@ -403,12 +434,23 @@ impl Skylander {
     /// Unlocks the wowpow for characters that have it
     /// True for unlock, false for lock
     pub fn set_wowpow(&mut self, set: bool) {
-        self.data[AREA_BOUNDS[2].0 + 0x6] = 0x01;
-        self.data[AREA_BOUNDS[3].0 + 0x6] = 0x01;
+        self.used[AREA_BOUNDS[2].0 / SECTOR_SIZE] = true;
+        self.used[AREA_BOUNDS[3].0 / SECTOR_SIZE] = true;
+        write_ones(&mut *self.data);
+        self.modified = true;
+        
+        self.data[AREA_BOUNDS[2].0 + 0x6] = set as u8;
+        self.data[AREA_BOUNDS[3].0 + 0x6] = set as u8;
     }
 
     /// Unlocks upgrades according to bitmap (least significant bit to most significant)
     pub fn set_upgrades(&mut self, bitmap: u8) {
+        const fn upgrade_loc(i: usize) -> usize {AREA_BOUNDS[i].0 + BLOCK_SIZE};
+        self.used[upgrade_loc(0) / SECTOR_SIZE] = true;
+        self.used[upgrade_loc(1) / SECTOR_SIZE] = true;
+        write_ones(&mut *self.data);
+        self.modified = true;
+
         let upgrade_path = match (self.data[AREA_BOUNDS[0].0 + BLOCK_SIZE] | self.data[AREA_BOUNDS[1].0 + BLOCK_SIZE]) & 0b11 {
             0b01 => UpgradePath::Top,
             0b11 => UpgradePath::Bottom,
@@ -418,7 +460,6 @@ impl Skylander {
         fullmap = (bitmap as u16) << 2;
         fullmap |= upgrade_path as u16;
 
-        const fn upgrade_loc(i: usize) -> usize {AREA_BOUNDS[i].0 + BLOCK_SIZE};
         let bytes = fullmap.to_le_bytes();
         self.data[upgrade_loc(0) .. upgrade_loc(0) + 2].copy_from_slice(&bytes);
         self.data[upgrade_loc(1) .. upgrade_loc(1) + 2].copy_from_slice(&bytes);
@@ -450,17 +491,35 @@ pub enum UpgradePath {
     None = 0b00
 }
 
+fn update_used(data: &[u8; NUM_BYTES]) -> [bool; NUM_SECTORS] {
+    let mut used = [false; NUM_SECTORS];
+    used[0] = true;
+    for i in 0..NUM_SECTORS {
+        let sector_start = i * SECTOR_SIZE;
+        for byte in &data[sector_start.. sector_start + SECTOR_SIZE - BLOCK_SIZE] {
+            if *byte != 0x00u8 {
+                used[i] = true;
+                break;
+            }
+        }
+    }
+    used
+}
+
 /// Encrypts or decrypts the 1K byte Skylander data. Does not check the validity of sector 0 data,
 /// nor of the data blocks (checksums must be calculated before encryption and after decryption)
 /// - if encrypt is true, then the data in Sectors 1 through 15 (excl. sector trailers) will be encrypted,
 ///   decrypted if false
 /// writes in-place
-pub fn encryption_skylander(data: &mut [u8; NUM_BYTES], encrypt: bool) {
+fn encryption_skylander(data: &mut [u8; NUM_BYTES], used: &[bool; NUM_SECTORS], encrypt: bool) {
     let mut seed = [0u8; 0x56];
     seed[..0x20].copy_from_slice(&data[..0x20]);
     seed[0x21..].copy_from_slice(HASH_CONST);
 
-    for i in 1..NUM_SECTORS {       
+    for i in 1..NUM_SECTORS {
+        if !used[i] {
+            continue;
+        }
         for j in 0..BLOCKS_PER_SECTOR - 1 {
             let block_idx = BLOCKS_PER_SECTOR * i + j;
             seed[0x20] = block_idx as u8;
@@ -479,7 +538,7 @@ pub fn encryption_skylander(data: &mut [u8; NUM_BYTES], encrypt: bool) {
 }
 
 /// Calculates all checksums, writes in place to data array
-pub fn calculate_checksums(data: &mut [u8; NUM_BYTES]) {
+fn calculate_checksums(data: &mut [u8; NUM_BYTES]) {
     // Checksum placeholders
     data[0x8E] = 0x05;
     data[0x8F] = 0x00;
@@ -553,7 +612,9 @@ fn calculate_key_a(data: &mut [u8; NUM_BYTES]) {
 fn write_ones(data: &mut [u8; NUM_BYTES]) {
     // Area counters must be updated s.t. we can modify a new skylander directly
     data[0x89] = 0x01;
+    data[0x249] = 0x00;
     data[0x112] = 0x01;
+    data[0x2D2] = 0x00;
     
     // To be considered in games after SSA
     data[0x93] = 0x01;
