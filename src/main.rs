@@ -2,21 +2,18 @@ mod skyutils;
 mod skyfigures;
 mod skyvariants;
 mod skyhats;
+mod app;
 
+use app::SkyApp;
 use skyutils::Skylander;
-use skyfigures::{Character, IntoEnumIterator};
-use skyvariants::Variant;
-use skyhats::Hat;
 
-fn main() {
-    let sky1 = Skylander::new(Character::TriggerHappy, Variant::Series3, Some([0x20, 0x24, 0x49, 0x12]));
-    sky1.save_to_filename("../Skylanders_Files/Tests/test1.sky").expect("couldn't save file");
-
-    for c in Character::iter() {
-        println!("{}", c.to_string());
-    }
-
-    for h in Hat::iter() {
-        println!("{}", h.to_string());
-    }
+fn main() -> eframe::Result {
+    // let native_opts = eframe::NativeOptions::default();
+    // eframe::run_native("Skylander Analyzer", native_opts, 
+    //     Box::new(
+    //         |cc| {Ok(Box::new(SkyApp::new(cc)))}
+    // ))
+    let sky1 = Skylander::from_nfc().expect("msg");
+    println!("{}", sky1.get_figure().to_string());
+    Ok(())
 }

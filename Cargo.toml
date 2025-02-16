@@ -13,3 +13,6 @@ aes = "0.7.5"
 strum = "0.26"
 strum_macros = "0.26"
 mifare_utils = {git = "https://github.com/this-tarta/Mifare-Utils.git"}
+egui = "0.30"
+eframe = "0.30"
+rfd = "*"

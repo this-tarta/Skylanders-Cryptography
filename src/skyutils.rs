@@ -451,11 +451,7 @@ impl Skylander {
         write_ones(&mut *self.data);
         self.modified = true;
 
-        let upgrade_path = match (self.data[AREA_BOUNDS[0].0 + BLOCK_SIZE] | self.data[AREA_BOUNDS[1].0 + BLOCK_SIZE]) & 0b11 {
-            0b01 => UpgradePath::Top,
-            0b11 => UpgradePath::Bottom,
-            _ => UpgradePath::None
-        };
+        let upgrade_path = self.get_upgrade_path();
         let mut fullmap: u16 = 0;
         fullmap = (bitmap as u16) << 2;
         fullmap |= upgrade_path as u16;
@@ -463,6 +459,26 @@ impl Skylander {
         let bytes = fullmap.to_le_bytes();
         self.data[upgrade_loc(0) .. upgrade_loc(0) + 2].copy_from_slice(&bytes);
         self.data[upgrade_loc(1) .. upgrade_loc(1) + 2].copy_from_slice(&bytes);
+    }
+
+    pub fn get_wowpow(&self) -> bool {        
+        self.data[AREA_BOUNDS[2].0 + 0x6] == 1u8
+    }
+
+    pub fn get_upgrade_path(&self) -> UpgradePath {
+        match (self.data[AREA_BOUNDS[0].0 + BLOCK_SIZE] | self.data[AREA_BOUNDS[1].0 + BLOCK_SIZE]) & 0b11 {
+            0b01 => UpgradePath::Top,
+            0b11 => UpgradePath::Bottom,
+            _ => UpgradePath::None
+        }
+    }
+
+    pub fn get_upgrades(&self) -> u8 {
+        const fn upgrade_loc(i: usize) -> usize {AREA_BOUNDS[i].0 + BLOCK_SIZE};
+        let mut bytes = [0u8; 2];
+        bytes.copy_from_slice(&self.data[upgrade_loc(0) .. upgrade_loc(0) + 2]);
+        let bitmap = u16::from_le_bytes(bytes);
+        (bitmap >> 2) as u8
     }
 }
 
@@ -484,7 +500,7 @@ impl std::fmt::Display for Toy {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum UpgradePath {
     Top = 0b01,
     Bottom = 0b11,
@@ -624,6 +640,7 @@ fn write_ones(data: &mut [u8; NUM_BYTES]) {
 }
 
 #[test]
+// Note: tests have not been updated
 pub fn test_skylander_file_io() {
     const FILE_1: &str = "./test1.sky";
     const FILE_2: &str = "./test2.sky";
