@@ -6,7 +6,6 @@ use crate::skyhats::Hat;
 use crate::skyutils::*;
 use crate::skyfigures::*;
 use crate::skyvariants::Variant;
-// use crate::skyvariants::*;
 
 pub struct SkyApp {
     toy: Option<Skylander>,
@@ -71,7 +70,7 @@ impl SkyApp {
         ui.horizontal(|ui| {
             ui.label("Select upgrades: ");
             let mut arr = u8_bitmap_to_bool_arr(self.toy.as_ref().unwrap().get_upgrades());
-            for i in 0..8 {
+            for i in (0..8).rev() {
                 ui.checkbox(&mut arr[i], "");
             }
             self.toy.as_mut().unwrap().set_upgrades(bool_arr_to_u8_bitmap(&arr));
@@ -188,18 +187,24 @@ impl App for SkyApp {
         });
         CentralPanel::default().show(ctx, |ui| {
             if self.toy.is_some() {
-                self.upgrades_checkboxes(ui);
-                self.upgrade_path_opts(ui);
-                { // Wowpow checkbox
-                    let mut wowpow = self.toy.as_ref().unwrap().get_wowpow();
-                    ui.checkbox(&mut wowpow, "Set wowpow");
-                    self.toy.as_mut().unwrap().set_wowpow(wowpow);
+                let figure = self.toy.as_ref().unwrap().get_figure();
+                if let Toy::Character(_) = figure {
+                    self.upgrades_checkboxes(ui);
+                    self.upgrade_path_opts(ui);
+                    { // Wowpow checkbox
+                        let mut wowpow = self.toy.as_ref().unwrap().get_wowpow();
+                        ui.checkbox(&mut wowpow, "Set wowpow");
+                        self.toy.as_mut().unwrap().set_wowpow(wowpow);
+                    }
+    
+                    self.slider(ui, &Skylander::get_xp, &Skylander::set_xp, 0, 197500u32, "Set xp: ");
+                    self.slider(ui, &Skylander::get_level, &Skylander::set_level, 1, 20, "Set level: ");
+                    self.slider(ui, &Skylander::get_gold, &Skylander::set_gold, 0, 0xFFFFu16, "Set gold: ");
+                    self.hat_dropdown(ui);                
+                    
+                } else if let Toy::Vehicle(_) = figure {
+                    // Vehicle behavior
                 }
-
-                self.slider(ui, &Skylander::get_xp, &Skylander::set_xp, 0, 197500u32, "Set xp: ");
-                self.slider(ui, &Skylander::get_level, &Skylander::set_level, 1, 20, "Set level: ");
-                self.slider(ui, &Skylander::get_gold, &Skylander::set_gold, 0, 0xFFFFu16, "Set gold: ");
-                self.hat_dropdown(ui);                
                 
                 if ui.button("Reset figure").clicked() {
                     self.toy.as_mut().unwrap().clear();
