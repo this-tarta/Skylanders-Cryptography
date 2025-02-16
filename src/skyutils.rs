@@ -467,10 +467,12 @@ impl Skylander {
         self.data[upgrade_loc(1) .. upgrade_loc(1) + 2].copy_from_slice(&bytes);
     }
 
+    /// Gets whether the wowpow is set (true means it is set, false means not)
     pub fn get_wowpow(&self) -> bool {        
         self.data[AREA_BOUNDS[2].0 + 0x6] == 1u8
     }
 
+    /// Gets the upgrade path of the figure
     pub fn get_upgrade_path(&self) -> UpgradePath {
         match (self.data[AREA_BOUNDS[0].0 + BLOCK_SIZE] | self.data[AREA_BOUNDS[1].0 + BLOCK_SIZE]) & 0b11 {
             0b01 => UpgradePath::Top,
@@ -479,6 +481,7 @@ impl Skylander {
         }
     }
 
+    /// Gets the upgrades of the figure as a bitmap
     pub fn get_upgrades(&self) -> u8 {
         const fn upgrade_loc(i: usize) -> usize {AREA_BOUNDS[i].0 + BLOCK_SIZE};
         let mut bytes = [0u8; 2];
