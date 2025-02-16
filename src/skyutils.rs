@@ -4,7 +4,7 @@ use crc;
 use aes::Aes128;
 use block_modes::{block_padding::ZeroPadding, BlockMode};
 use block_modes::Ecb;
-use md_5::{Md5, Digest};
+use md5::{Md5, Digest};
 use num::traits::ops::bytes;
 use std::cmp::min;
 use std::{u16, u32};
@@ -191,7 +191,9 @@ impl Skylander {
 
         // Sector 0
         card.authenticate_with_key(0, KEY_A_SECTOR_0, KeyType::KeyA)?;
-        data[..SECTOR_SIZE].copy_from_slice(&card.read_sector(0)?);
+        for i in 0..BLOCKS_PER_SECTOR {
+            data[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE].copy_from_slice(&card.read_block(i as u8)?);
+        }
         calculate_key_a(&mut *data);
 
         for i in 1..NUM_SECTORS {
@@ -200,9 +202,13 @@ impl Skylander {
             let sector_trailer = &data[sector_start + 3 * BLOCK_SIZE..sector_start + 3 * BLOCK_SIZE + 6];
             key_a.copy_from_slice(sector_trailer);
 
-            card.authenticate_with_key((i * BLOCKS_PER_SECTOR) as u8, &key_a, KeyType::KeyA)?;
-            data[SECTOR_SIZE * i..SECTOR_SIZE * (i + 1) - BLOCK_SIZE]
-                .copy_from_slice(&card.read_sector(i as u8)?[..SECTOR_SIZE - BLOCK_SIZE]); // copy everything but trailer (not needed)
+            let sector_hdr = i * BLOCKS_PER_SECTOR;
+            card.authenticate_with_key(sector_hdr as u8, &key_a, KeyType::KeyA)?;
+            for i in 0..BLOCKS_PER_SECTOR - 1 {
+                let block = sector_hdr + i;
+                data[block * BLOCK_SIZE..(block + 1) * BLOCK_SIZE]
+                    .copy_from_slice(&card.read_block(block as u8)?);
+            }
         }
 
         let used = update_used(& *data);
