@@ -5,7 +5,6 @@ use aes::Aes128;
 use block_modes::{block_padding::ZeroPadding, BlockMode};
 use block_modes::Ecb;
 use md5::{Md5, Digest};
-use num::traits::ops::bytes;
 use std::cmp::min;
 use std::{u16, u32};
 use std::{fs::{self, File}, io::{self, Read, Seek, Write}, path::Path};
@@ -173,7 +172,7 @@ impl Skylander {
         let used = update_used(& *data);
         encryption_skylander(&mut *data, &used, false);
 
-        Ok(Self { data , used, modified: true})
+        Ok(Self { data , used, modified: false })
     }
 
     /// Reads a Skylander from a file
@@ -267,7 +266,8 @@ impl Skylander {
     /// Returns the gold of the Skylander
     pub fn get_gold(&self) -> u16{
         let mut bytes = [0u8; 2];
-        bytes.copy_from_slice(&self.data[AREA_BOUNDS[0].0 + 0x3..= AREA_BOUNDS[0].0 + 0x4]);
+        let area = if self.used[AREA_BOUNDS[0].0 / SECTOR_SIZE] { 0 } else { 1 };
+        bytes.copy_from_slice(&self.data[AREA_BOUNDS[area].0 + 0x3..= AREA_BOUNDS[area].0 + 0x4]);
         u16::from_le_bytes(bytes)
     }
     
@@ -321,10 +321,13 @@ impl Skylander {
         let mut xp1_bytes = [0u8; 2];
         let mut xp2_bytes = [0u8; 2];
         let mut xp3_bytes = [0u8; 4];
+
+        let area1 = if self.used[AREA_BOUNDS[0].0 / SECTOR_SIZE] { 0 } else { 1 };
+        let area2 = if self.used[AREA_BOUNDS[2].0 / SECTOR_SIZE] { 2 } else { 3 };
         
-        xp1_bytes.copy_from_slice(&self.data[AREA_BOUNDS[0].0 ..= AREA_BOUNDS[0].0 + 0x1]);
-        xp2_bytes.copy_from_slice(&self.data[AREA_BOUNDS[2].0 + 0x3 ..= AREA_BOUNDS[2].0 + 0x4]);
-        xp3_bytes[..3].copy_from_slice(&self.data[AREA_BOUNDS[2].0 + 0x8 .. AREA_BOUNDS[2].0 + 0xB]);
+        xp1_bytes.copy_from_slice(&self.data[AREA_BOUNDS[area1].0 ..= AREA_BOUNDS[area1].0 + 0x1]);
+        xp2_bytes.copy_from_slice(&self.data[AREA_BOUNDS[area2].0 + 0x3 ..= AREA_BOUNDS[area2].0 + 0x4]);
+        xp3_bytes[..3].copy_from_slice(&self.data[AREA_BOUNDS[area2].0 + 0x8 .. AREA_BOUNDS[area2].0 + 0xB]);
 
         u16::from_le_bytes(xp1_bytes) as u32 + u16::from_le_bytes(xp2_bytes) as u32 + u32::from_le_bytes(xp3_bytes)
     }
@@ -362,6 +365,7 @@ impl Skylander {
 
         self.used = [false; NUM_SECTORS];
         self.used[0] = true;
+        self.modified = false;
     }
 
     /// Sets the hat on the Skylander
@@ -378,7 +382,8 @@ impl Skylander {
     /// Gets the hat of a Skylander, returns error if not a valid hat
     pub fn get_hat(&self) -> Result<Hat, <Hat as TryFrom<u16>>::Error> {
         let mut bytes = [0u8; 2];
-        bytes.copy_from_slice(&self.data[0x94..=0x95]);
+        let area = if self.used[AREA_BOUNDS[0].0 / SECTOR_SIZE] { 0 } else { 1 };
+        bytes.copy_from_slice(&self.data[AREA_BOUNDS[area].0 + 0x14..= AREA_BOUNDS[area].0 + 0x15]);
         Hat::try_from(u16::from_le_bytes(bytes))
     }
 
@@ -468,8 +473,9 @@ impl Skylander {
     }
 
     /// Gets whether the wowpow is set (true means it is set, false means not)
-    pub fn get_wowpow(&self) -> bool {        
-        self.data[AREA_BOUNDS[2].0 + 0x6] == 1u8
+    pub fn get_wowpow(&self) -> bool {
+        let area = if self.used[AREA_BOUNDS[2].0 / SECTOR_SIZE] { 2 } else { 3 };
+        self.data[AREA_BOUNDS[area].0 + 0x6] == 1u8
     }
 
     /// Gets the upgrade path of the figure
@@ -484,8 +490,9 @@ impl Skylander {
     /// Gets the upgrades of the figure as a bitmap
     pub fn get_upgrades(&self) -> u8 {
         const fn upgrade_loc(i: usize) -> usize {AREA_BOUNDS[i].0 + BLOCK_SIZE};
+        let area = if self.used[AREA_BOUNDS[0].0 / SECTOR_SIZE] { 0 } else { 1 };
         let mut bytes = [0u8; 2];
-        bytes.copy_from_slice(&self.data[upgrade_loc(0) .. upgrade_loc(0) + 2]);
+        bytes.copy_from_slice(&self.data[upgrade_loc(area) .. upgrade_loc(area) + 2]);
         let bitmap = u16::from_le_bytes(bytes);
         (bitmap >> 2) as u8
     }
@@ -649,17 +656,16 @@ fn write_ones(data: &mut [u8; NUM_BYTES]) {
 }
 
 #[test]
-// Note: tests have not been updated
-pub fn test_skylander_file_io() {
+fn test_skylander_file_io() {
     const FILE_1: &str = "./test1.sky";
     const FILE_2: &str = "./test2.sky";
-
+    
     let sky1 = Skylander::new(Character::TriggerHappy, Variant::Series3, Some([0x20, 0x24, 0x49, 0x12]));
     sky1.save_to_filename(FILE_1).expect("couldn't save file");
 
     let sky2 = Skylander::from_filename(FILE_1).expect("couldn't read file");
     sky2.save_to_filename(FILE_2).expect("couldn't save file");
-
+    
     let mut data_1 = [0u8; NUM_BYTES];
     let mut data_2 = [0u8; NUM_BYTES];
     let mut file_1 = File::open(FILE_1).expect("couldn't open file");
@@ -668,8 +674,31 @@ pub fn test_skylander_file_io() {
     file_1.read_exact(&mut data_1).expect("couldn't read file");
     file_2.read_exact(&mut data_2).expect("couldn't read file");
 
-    assert_eq!(&data_1, &data_2);
-
     fs::remove_file(Path::new(FILE_1)).expect("couldn't delete file");
     fs::remove_file(Path::new(FILE_2)).expect("couldn't delete file");
+
+    assert_eq!(&data_1, &data_2);
+}
+
+#[test]
+fn dump_decrypted_skylander_from_file() {
+    const FILE_1: &str = "../Skylanders_Files/Tests/test2.sky"; // change this
+    const FILE_2: &str = "../Skylanders_Files/Tests/test2_dec.sky";
+
+    let sky1 = Skylander::from_filename(FILE_1).expect("couldn't read file");
+    let mut file_2 = File::create(FILE_2).expect("couldn't create file");
+    file_2.write_all(& *sky1.data).expect("Couldn't write file 2");
+}
+
+#[test]
+fn encrypt_decrypted_skylander_dump() {
+    const FILE_1: &str = "../Skylanders_Files/Tests/test1_dec.sky"; // change this
+    const FILE_2: &str = "../Skylanders_Files/Tests/test2.sky";
+
+    let mut file_1 = File::open(FILE_1).expect("Couldn't open file");
+    let mut data = [0u8; NUM_BYTES];
+    file_1.read_exact(&mut data).expect("Could not read file");
+
+    let sky1 = Skylander {data: Box::new(data), modified: true, used: [true; NUM_SECTORS] };
+    sky1.save_to_filename(FILE_2).expect("couldn't write to file");
 }
