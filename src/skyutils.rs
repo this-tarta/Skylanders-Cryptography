@@ -496,6 +496,15 @@ impl Skylander {
         let bitmap = u16::from_le_bytes(bytes);
         (bitmap >> 2) as u8
     }
+
+    pub fn set_bytes(&mut self, start: usize, bytes: &[u8]) {
+        let len = bytes.len();
+        self.modified = true;
+        for i in (start..start + len).step_by(SECTOR_SIZE) {
+            self.used[i / SECTOR_SIZE] = true;
+        }
+        self.data[start..start + len].copy_from_slice(bytes);
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -682,8 +691,8 @@ fn test_skylander_file_io() {
 
 #[test]
 fn dump_decrypted_skylander_from_file() {
-    const FILE_1: &str = "../Skylanders_Files/Tests/test2.sky"; // change this
-    const FILE_2: &str = "../Skylanders_Files/Tests/test2_dec.sky";
+    const FILE_1: &str = "../Skylanders/hot_streak.sky"; // change this
+    const FILE_2: &str = "../Skylanders/hot_streak_dec.sky";
 
     let sky1 = Skylander::from_filename(FILE_1).expect("couldn't read file");
     let mut file_2 = File::create(FILE_2).expect("couldn't create file");
@@ -692,8 +701,8 @@ fn dump_decrypted_skylander_from_file() {
 
 #[test]
 fn encrypt_decrypted_skylander_dump() {
-    const FILE_1: &str = "../Skylanders_Files/Tests/test1_dec.sky"; // change this
-    const FILE_2: &str = "../Skylanders_Files/Tests/test2.sky";
+    const FILE_1: &str = "../Skylanders/hot_streak_dec.sky"; // change this
+    const FILE_2: &str = "../Skylanders/hot_streak2.sky";
 
     let mut file_1 = File::open(FILE_1).expect("Couldn't open file");
     let mut data = [0u8; NUM_BYTES];

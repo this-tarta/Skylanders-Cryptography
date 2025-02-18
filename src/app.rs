@@ -12,11 +12,21 @@ pub struct SkyApp {
     curr_file: Option<String>,
     top_query: String,
     inner_query: String,
+    byte_start_idx: usize,
+    bytes_val: usize,
+    bytes_size: u8
 }
 
 impl SkyApp {
     pub fn new(_cc: &CreationContext<'_>) -> Self {
-        Self { toy: None, curr_file: None, top_query: "".to_string(), inner_query: "".to_string() }
+        Self { toy: None,
+            curr_file: None,
+            top_query: "".to_string(),
+            inner_query: "".to_string(),
+            byte_start_idx: 0,
+            bytes_val: 0,
+            bytes_size: 1
+        }
     }
 
     fn button_per_it<T>(&mut self, ui: &mut Ui) where T: IntoEnumIterator + std::fmt::Display + Into<u16> + Copy {
@@ -114,6 +124,42 @@ impl SkyApp {
         self.toy.as_mut().unwrap().set_hat(hat);
     }
 
+    fn set_bytes_widget(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            ComboBox::new("bytes size", "")
+                .selected_text(
+                    match self.bytes_size {
+                        1 => "u8",
+                        2 => "u16",
+                        4 => "u32",
+                        8 => "u64",
+                        _ => "unexpected value"
+                    }
+                ).show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.bytes_size, 1, "u8");
+                    ui.selectable_value(&mut self.bytes_size, 2, "u16");
+                    ui.selectable_value(&mut self.bytes_size, 4, "u32");
+                    ui.selectable_value(&mut self.bytes_size, 8, "u64");
+                });
+            
+            ui.label("Enter a start byte [0, 1024): ");
+            ui.add(egui::DragValue::new(&mut self.byte_start_idx));
+            ui.label("Enter a little-endian value: ");
+            ui.add(egui::DragValue::new(&mut self.bytes_val));
+
+            if ui.button("Write").clicked() {
+                let bytes = match self.bytes_size {
+                    1 => vec![(self.bytes_val as u8)],
+                    2 => (self.bytes_val as u16).to_le_bytes().to_vec(),
+                    4 => (self.bytes_val as u32).to_le_bytes().to_vec(),
+                    8 => (self.bytes_val as u64).to_le_bytes().to_vec(),
+                    _ => Vec::new()
+                };
+                self.toy.as_mut().unwrap().set_bytes(self.byte_start_idx, &bytes);
+            }
+        });
+    }
+
 }
 
 impl App for SkyApp {
@@ -206,6 +252,8 @@ impl App for SkyApp {
                     // Vehicle behavior
                 }
                 
+                self.set_bytes_widget(ui);
+
                 if ui.button("Reset figure").clicked() {
                     self.toy.as_mut().unwrap().clear();
                 }
