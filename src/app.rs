@@ -102,10 +102,13 @@ impl SkyApp {
             min_val: T, max_val: T, label: &str) where T: eframe::emath::Numeric {
         ui.horizontal(|ui| {
             ui.label(label);
-            let mut val = getter(self.toy.as_ref().unwrap());
+            let orig_value = getter(self.toy.as_ref().unwrap());
+            let mut val = orig_value;
             let slider = Slider::new(&mut val, min_val..=max_val).integer();
             ui.add(slider);
-            setter(self.toy.as_mut().unwrap(), val);
+            if orig_value != val {
+                setter(self.toy.as_mut().unwrap(), val);
+            }
         });
     }
 
