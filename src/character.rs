@@ -8,9 +8,7 @@ static LEVELS: [i32; 21] = [-1, 0, 1000, 2200, 3800, 6000,
         9000, 13000, 18200, 24800, 33000, 42700, 53900,
         66600, 80800, 96500, 113700, 132400, 152600, 174300, 197500];
 
-pub struct Character {
-    skylander: SkylanderBase
-}
+extend_skylander_base!(Character);
 
 impl Character {
     /// Sets the upgrade path of the Skylander
@@ -21,8 +19,8 @@ impl Character {
         let byte0 = (self.skylander.data()[AREA_BOUNDS[0].0 + BLOCK_SIZE] & !0b11u8) | (path as u8);
         let byte1 = (self.skylander.data()[AREA_BOUNDS[1].0 + BLOCK_SIZE] & !0b11u8) | (path as u8);
 
-        self.skylander.set_bytes(AREA_BOUNDS[0].0 + BLOCK_SIZE, &[byte0]);
-        self.skylander.set_bytes(AREA_BOUNDS[1].0 + BLOCK_SIZE, &[byte1]);
+        self.set_bytes(AREA_BOUNDS[0].0 + BLOCK_SIZE, &[byte0]);
+        self.set_bytes(AREA_BOUNDS[1].0 + BLOCK_SIZE, &[byte1]);
     }
 
     /// Unlocks the wowpow for characters that have it
@@ -30,8 +28,8 @@ impl Character {
     pub fn set_wowpow(&mut self, set: bool) {
         self.skylander.write_ones();
 
-        self.skylander.set_bytes(AREA_BOUNDS[2].0 + 0x6, &[set as u8]);
-        self.skylander.set_bytes(AREA_BOUNDS[3].0 + 0x6, &[set as u8]);
+        self.set_bytes(AREA_BOUNDS[2].0 + 0x6, &[set as u8]);
+        self.set_bytes(AREA_BOUNDS[3].0 + 0x6, &[set as u8]);
     }
 
     /// Unlocks upgrades according to bitmap (least significant bit to most significant)
@@ -40,13 +38,12 @@ impl Character {
         self.skylander.write_ones();
 
         let upgrade_path = self.get_upgrade_path();
-        let mut fullmap: u16 = 0;
-        fullmap = (bitmap as u16) << 2;
+        let mut fullmap = (bitmap as u16) << 2;
         fullmap |= upgrade_path as u16;
 
         let bytes = fullmap.to_le_bytes();
-        self.skylander.set_bytes(upgrade_loc(0), &bytes);
-        self.skylander.set_bytes(upgrade_loc(1), &bytes);
+        self.set_bytes(upgrade_loc(0), &bytes);
+        self.set_bytes(upgrade_loc(1), &bytes);
     }
 
     /// Gets whether the wowpow is set (true means it is set, false means not)
@@ -78,8 +75,8 @@ impl Character {
     /// Note that in-game, the gold is capped at 65000
     pub fn set_gold(&mut self, gold: u16) {
         self.skylander.write_ones();
-        self.skylander.set_bytes(AREA_BOUNDS[0].0 + 0x3, &gold.to_le_bytes());
-        self.skylander.set_bytes(AREA_BOUNDS[1].0 + 0x3, &gold.to_le_bytes());
+        self.set_bytes(AREA_BOUNDS[0].0 + 0x3, &gold.to_le_bytes());
+        self.set_bytes(AREA_BOUNDS[1].0 + 0x3, &gold.to_le_bytes());
     }
 
     /// Sets gold of Skylander to max
@@ -113,14 +110,14 @@ impl Character {
         let xp2_bytes = (xp2 as u16).to_le_bytes();
         let xp3_bytes = xp3.to_le_bytes();
 
-        self.skylander.set_bytes(AREA_BOUNDS[0].0, &xp1_bytes);
-        self.skylander.set_bytes(AREA_BOUNDS[1].0, &xp1_bytes);
+        self.set_bytes(AREA_BOUNDS[0].0, &xp1_bytes);
+        self.set_bytes(AREA_BOUNDS[1].0, &xp1_bytes);
         
-        self.skylander.set_bytes(AREA_BOUNDS[2].0 + 0x3, &xp2_bytes);
-        self.skylander.set_bytes(AREA_BOUNDS[3].0 + 0x3, &xp2_bytes);
+        self.set_bytes(AREA_BOUNDS[2].0 + 0x3, &xp2_bytes);
+        self.set_bytes(AREA_BOUNDS[3].0 + 0x3, &xp2_bytes);
         
-        self.skylander.set_bytes(AREA_BOUNDS[2].0 + 0x8, &xp3_bytes[..3]);
-        self.skylander.set_bytes(AREA_BOUNDS[3].0 + 0x8, &xp3_bytes[..3]);
+        self.set_bytes(AREA_BOUNDS[2].0 + 0x8, &xp3_bytes[..3]);
+        self.set_bytes(AREA_BOUNDS[3].0 + 0x8, &xp3_bytes[..3]);
     }
 
     /// Sets experience points of skylander to max
@@ -158,7 +155,7 @@ impl Character {
         let mut start = 0;
         let mut end = LEVELS.len() - 1;
 
-        while (start <= end) {
+        while start <= end {
             let mid = end - (end - start) / 2;
             if LEVELS[mid] < xp as i32 {
                 level = mid;
@@ -178,8 +175,8 @@ impl Character {
     pub fn set_hat(&mut self, hat: Hat) {
         self.skylander.write_ones();
 
-        self.skylander.set_bytes(0x94, &(hat as u16).to_le_bytes());
-        self.skylander.set_bytes(0x254, &(hat as u16).to_le_bytes());
+        self.set_bytes(0x94, &(hat as u16).to_le_bytes());
+        self.set_bytes(0x254, &(hat as u16).to_le_bytes());
     }
 
     /// Gets the hat of a Skylander, returns error if not a valid hat
@@ -191,5 +188,3 @@ impl Character {
     }
 
 }
-
-extend_skylander_base!(Character);

@@ -12,12 +12,12 @@ use crate::skyvariants::Variant;
 type Aes128Ecb = Ecb<Aes128, ZeroPadding>;
 
 pub(crate) const BLOCK_SIZE: usize = 16;
-pub(crate)const BLOCKS_PER_SECTOR: usize = 4;
-pub(crate)const SECTOR_SIZE: usize = BLOCK_SIZE * BLOCKS_PER_SECTOR;
-pub(crate)const NUM_SECTORS: usize = 16;
+pub(crate) const BLOCKS_PER_SECTOR: usize = 4;
+pub(crate) const SECTOR_SIZE: usize = BLOCK_SIZE * BLOCKS_PER_SECTOR;
+pub(crate) const NUM_SECTORS: usize = 16;
 /// The number of bytes that a Skylander figure (Mifare 1K NFC tag) stores
-pub(crate)const NUM_BYTES: usize = SECTOR_SIZE * NUM_SECTORS;
-pub(crate)const NUM_BLOCKS: usize = NUM_BYTES / BLOCK_SIZE;
+pub(crate) const NUM_BYTES: usize = SECTOR_SIZE * NUM_SECTORS;
+pub(crate) const NUM_BLOCKS: usize = NUM_BYTES / BLOCK_SIZE;
 
 /// AREA_BOUNDS[i] is the bounds [start, end) of area i
 pub(crate)static AREA_BOUNDS: [(usize, usize); 4] = [(0x80, 0x110), (0x240, 0x2D0), (0x110, 0x160), (0x2D0, 0x320)];
@@ -331,6 +331,22 @@ impl Skylander for SkylanderBase {
 #[macro_export]
 macro_rules! extend_skylander_base {
     ($type:ident) => {
+        pub struct $type {
+            skylander: SkylanderBase
+        }
+        
+        impl From<SkylanderBase> for $type {
+            fn from(value: SkylanderBase) -> Self {
+                Self { skylander: value }
+            }
+        }
+
+        impl Into<SkylanderBase> for $type {
+            fn into(self) -> SkylanderBase {
+                self.skylander
+            }
+        }
+
         impl Skylander for $type {
             fn clear(&mut self) {
                 self.skylander.clear();

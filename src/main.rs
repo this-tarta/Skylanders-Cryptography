@@ -4,6 +4,10 @@ mod skyvariants;
 mod skyhats;
 mod app;
 mod character;
+mod vehicle;
+mod statictoys;
+mod trap;
+mod imaginators;
 
 use app::SkyApp;
 

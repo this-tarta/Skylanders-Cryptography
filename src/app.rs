@@ -2,13 +2,43 @@ use eframe::*;
 use egui::*;
 use rfd::*;
 
+use crate::character::{self, Character};
+use crate::imaginators::{self, ImaginatorCrystal};
+use crate::statictoys::{self, Expansion, Item};
+use crate::vehicle::{self, Vehicle};
+use crate::trap::{self, Trap};
+
+use crate::skyfigures::{self, IntoEnumIterator};
 use crate::skyhats::Hat;
 use crate::skyutils::*;
-use crate::skyfigures::*;
 use crate::skyvariants::Variant;
 
+enum Optional {
+    Character(character::Character),
+    Vehicle(vehicle::Vehicle),
+    Item(statictoys::Item),
+    Expansion(statictoys::Expansion),
+    Trap(trap::Trap),
+    ImaginatorCrystal(imaginators::ImaginatorCrystal),
+    Unknown(SkylanderBase),
+    None
+}
+
+fn execute_generic<T: Default>(s: &mut Optional, f: &dyn Fn(&mut dyn Skylander) -> T) -> T {
+    match s {
+        Optional::Character(x) => f(x),
+        Optional::Vehicle(x) => f(x),
+        Optional::Trap(x) => f(x),
+        Optional::ImaginatorCrystal(x) => f(x),
+        Optional::Expansion(x) => f(x),
+        Optional::Item(x) => f(x),
+        Optional::Unknown(x) => f(x),
+        Optional::None => T::default()
+    }
+}
+
 pub struct SkyApp {
-    toy: Option<Skylander>,
+    toy: Optional,
     curr_file: Option<String>,
     top_query: String,
     inner_query: String,
@@ -19,7 +49,7 @@ pub struct SkyApp {
 
 impl SkyApp {
     pub fn new(_cc: &CreationContext<'_>) -> Self {
-        Self { toy: None,
+        Self { toy: Optional::None,
             curr_file: None,
             top_query: "".to_string(),
             inner_query: "".to_string(),
@@ -42,7 +72,15 @@ impl SkyApp {
                                 let si = v.to_string();
                                 if si.to_lowercase().contains(&self.inner_query.to_lowercase())
                                         && ui.button(si).clicked() {
-                                    self.toy = Some(Skylander::new(i, v, None));
+                                    self.toy = match Toy::try_from(i.into()).unwrap() {
+                                        Toy::Character(x) => Optional::Character(Character::new(Toy::Character(x), v, None)),
+                                        Toy::Vehicle(x) => Optional::Vehicle(Vehicle::new(Toy::Vehicle(x), v, None)),
+                                        Toy::Item(x) => Optional::Item(Item::new(Toy::Item(x), v, None)),
+                                        Toy::Expansion(x) => Optional::Expansion(Expansion::new(Toy::Expansion(x), v, None)),
+                                        Toy::Trap(x) => Optional::Trap(Trap::new(Toy::Trap(x), v, None)),
+                                        Toy::ImaginatorCrystal(x) => Optional::ImaginatorCrystal(ImaginatorCrystal::new(Toy::ImaginatorCrystal(x), v, None)),
+                                        Toy::Unknown(x) => Optional::Unknown(SkylanderBase::new(Toy::Unknown(x), v, None))
+                                    };
                                     self.inner_query = "".to_string();
                                     self.top_query = "".to_string();
                                     ui.close_menu();
@@ -57,63 +95,63 @@ impl SkyApp {
     
     fn create_menu(&mut self, ui: &mut Ui) {
         ui.menu_button("Character", |ui| {
-            self.button_per_it::<Character>(ui);
+            self.button_per_it::<skyfigures::Character>(ui);
         });
         ui.menu_button("Item", |ui| {
-            self.button_per_it::<Item>(ui);
+            self.button_per_it::<skyfigures::Item>(ui);
         });
         ui.menu_button("Trap", |ui| {
-            self.button_per_it::<Trap>(ui);
+            self.button_per_it::<skyfigures::Trap>(ui);
         });
         ui.menu_button("Vehicle", |ui| {
-            self.button_per_it::<Vehicle>(ui);
+            self.button_per_it::<skyfigures::Vehicle>(ui);
         });
         ui.menu_button("Imaginator Crystal", |ui| {
-            self.button_per_it::<ImaginatorCrystal>(ui);
+            self.button_per_it::<skyfigures::ImaginatorCrystal>(ui);
         });
         ui.menu_button("Expansion", |ui| {
-            self.button_per_it::<Expansion>(ui);
+            self.button_per_it::<skyfigures::Expansion>(ui);
         });
     }
 
-    fn upgrades_checkboxes(&mut self, ui: &mut Ui) {
+    fn upgrades_checkboxes(c: &mut character::Character, ui: &mut Ui) {
         ui.horizontal(|ui| {
             ui.label("Select upgrades: ");
-            let mut arr = u8_bitmap_to_bool_arr(self.toy.as_ref().unwrap().get_upgrades());
+            let mut arr = u8_bitmap_to_bool_arr(c.get_upgrades());
             for i in (0..8).rev() {
                 ui.checkbox(&mut arr[i], "");
             }
-            self.toy.as_mut().unwrap().set_upgrades(bool_arr_to_u8_bitmap(&arr));
+            c.set_upgrades(bool_arr_to_u8_bitmap(&arr));
         });
     }
 
-    fn upgrade_path_opts(&mut self, ui: &mut Ui) {
+    fn upgrade_path_opts(c: &mut character::Character, ui: &mut Ui) {
         ui.horizontal(|ui| {
             ui.label("Choose upgrade path: ");
-            let mut path = self.toy.as_ref().unwrap().get_upgrade_path();
+            let mut path = c.get_upgrade_path();
             ui.selectable_value(&mut path, UpgradePath::None, "None");
             ui.selectable_value(&mut path, UpgradePath::Top, "Top");
             ui.selectable_value(&mut path, UpgradePath::Bottom, "Bottom");
-            self.toy.as_mut().unwrap().set_upgrade_path(path);
+            c.set_upgrade_path(path);
         });
     }
 
-    fn slider<T>(&mut self, ui: &mut Ui, getter: &dyn Fn(&Skylander) -> T, setter: &dyn Fn(&mut Skylander, T),
+    fn slider<T, S>(s: &mut S, ui: &mut Ui, getter: &dyn Fn(&S) -> T, setter: &dyn Fn(&mut S, T),
             min_val: T, max_val: T, label: &str) where T: eframe::emath::Numeric {
         ui.horizontal(|ui| {
             ui.label(label);
-            let orig_value = getter(self.toy.as_ref().unwrap());
+            let orig_value = getter(s);
             let mut val = orig_value;
             let slider = Slider::new(&mut val, min_val..=max_val).integer();
             ui.add(slider);
             if orig_value != val {
-                setter(self.toy.as_mut().unwrap(), val);
+                setter(s, val);
             }
         });
     }
 
-    fn hat_dropdown(&mut self, ui: &mut Ui) {
-        let mut hat = match self.toy.as_ref().unwrap().get_hat() {
+    fn hat_dropdown(c: &mut character::Character, ui: &mut Ui) {
+        let mut hat = match c.get_hat() {
             Ok(h) => h,
             _ => Hat::None
         };
@@ -124,7 +162,7 @@ impl SkyApp {
                     ui.selectable_value(&mut hat, h, h.to_string());
                 }
             });
-        self.toy.as_mut().unwrap().set_hat(hat);
+        c.set_hat(hat);
     }
 
     fn set_bytes_widget(&mut self, ui: &mut Ui) {
@@ -158,11 +196,37 @@ impl SkyApp {
                     8 => (self.bytes_val as u64).to_le_bytes().to_vec(),
                     _ => Vec::new()
                 };
-                self.toy.as_mut().unwrap().set_bytes(self.byte_start_idx, &bytes);
+
+                execute_generic(&mut self.toy, &|x| { x.set_bytes(self.byte_start_idx, &bytes); });
             }
         });
     }
 
+}
+
+fn from_base(s: SkylanderBase) -> Optional {
+    match s.get_figure() {
+        Toy::Character(_) => Optional::Character(character::Character::from(s)),
+        Toy::Vehicle(_) => Optional::Vehicle(vehicle::Vehicle::from(s)),
+        Toy::Trap(_) => Optional::Trap(trap::Trap::from(s)),
+        Toy::Item(_) => Optional::Item(statictoys::Item::from(s)),
+        Toy::Expansion(_) => Optional::Expansion(statictoys::Expansion::from(s)),
+        Toy::ImaginatorCrystal(_) => Optional::ImaginatorCrystal(imaginators::ImaginatorCrystal::from(s)),
+        Toy::Unknown(_) => Optional::Unknown(s)
+    }
+}
+
+fn to_base(s: Optional) -> Option<SkylanderBase> {
+    match s {
+        Optional::Character(x) => Some(x.into()),
+        Optional::Vehicle(x) => Some(x.into()),
+        Optional::Trap(x) => Some(x.into()),
+        Optional::Expansion(x) => Some(x.into()),
+        Optional::Item(x) => Some(x.into()),
+        Optional::ImaginatorCrystal(x) => Some(x.into()),
+        Optional::Unknown(x) => Some(x),
+        Optional::None => None
+    }
 }
 
 impl App for SkyApp {
@@ -175,40 +239,54 @@ impl App for SkyApp {
                 if ui.button("Open File").clicked() {
                     if let Some(path) = FileDialog::new().pick_file() {
                         let selected_file = path.display().to_string();
-                        self.toy = match Skylander::from_filename(&selected_file) {
-                            Ok(s) => Some(s),
-                            _ => None
-                        };
-                        self.curr_file = Some(selected_file);
+                        if let Ok(s) = SkylanderBase::from_filename(&selected_file) {
+                            self.toy = from_base(s);
+                            self.curr_file = Some(selected_file);
+                        }
                     }
                 }
                 
                 if self.curr_file.is_some() {
                     if ui.button("Save").clicked() {
-                        let _ = self.toy.as_ref().unwrap().save_to_filename(&self.curr_file.as_ref().unwrap());
+                        execute_generic(&mut self.toy, &|x| {
+                            let _ = x.save_to_filename(&self.curr_file.as_ref().unwrap());
+                        });
                     }
                 }
 
                 if ui.button("Save As File").clicked() {
-                    if self.toy.is_some() {
-                        if let Some(path) = FileDialog::new().save_file() {
-                            let selected_file = path.display().to_string();
-                            let _ = self.toy.as_ref().unwrap().save_to_filename(&selected_file);
-                            self.curr_file = Some(selected_file);
+                    match &self.toy {
+                        Optional::None => (),
+                        _ => {
+                            if let Some(path) = FileDialog::new().save_file() {
+                                let selected_file = path.display().to_string();
+                                execute_generic(&mut self.toy, &|x| {
+                                    let _ = x.save_to_filename(&self.curr_file.as_ref().unwrap());
+                                });
+                                self.curr_file = Some(selected_file);
+                            }
                         }
                     }
                 }
 
                 if ui.button("Scan NFC").clicked() {
-                    self.toy = match Skylander::from_nfc() {
-                        Ok(s) => Some(s),
-                        _ => { println!("failed to read"); None }
-                    };
+                    if let Ok(s) = SkylanderBase::from_nfc() {
+                        self.toy = from_base(s);
+                    }
                 }
     
                 if ui.button("Save to NFC").clicked() {
-                    if self.toy.is_some() {
-                        let _ = self.toy.as_ref().unwrap().save_to_nfc();
+                    match &self.toy {
+                        Optional::None => (),
+                        _ => {
+                            if let Some(path) = FileDialog::new().save_file() {
+                                let selected_file = path.display().to_string();
+                                execute_generic(&mut self.toy, &|x| {
+                                    let _ = x.save_to_nfc();
+                                });
+                                self.curr_file = Some(selected_file);
+                            }
+                        }
                     }
                 }
 
@@ -216,49 +294,48 @@ impl App for SkyApp {
         });
 
         SidePanel::left("Figure").resizable(true).show(ctx, |ui| {
-            ui.label(format!("Current toy: {}, Variant: {}", match self.toy.as_ref() {
-                Some(t) => t.get_figure().to_string(),
-                None => "None".to_string()
-            },
-                match self.toy.as_ref() {
-                    Some(t) => match t.get_variant() {
-                        Ok(v) => v.to_string(),
-                        _ => "None".to_string()
-                    },
-                    None => "None".to_string()
+            ui.label(format!("Current toy: {}, Variant: {}",
+                {
+                    execute_generic(&mut self.toy, &|x| { x.get_figure().to_string() })
+                },
+                {
+                    execute_generic(&mut self.toy, &|x| { x.get_variant().to_string() })
                 }
             ));
 
             if ui.button("Clear toy").clicked() {
-                self.toy = None;
+                self.toy = Optional::None;
                 self.curr_file = None;
             }
         });
         CentralPanel::default().show(ctx, |ui| {
-            if self.toy.is_some() {
-                let figure = self.toy.as_ref().unwrap().get_figure();
-                if let Toy::Character(_) = figure {
-                    self.upgrades_checkboxes(ui);
-                    self.upgrade_path_opts(ui);
+            // Type-dependent behavior
+            match &mut self.toy {
+                Optional::Character(c) => {
+                    SkyApp::upgrades_checkboxes(c, ui);
+                    SkyApp::upgrade_path_opts(c, ui);
                     { // Wowpow checkbox
-                        let mut wowpow = self.toy.as_ref().unwrap().get_wowpow();
+                        let mut wowpow = c.get_wowpow();
                         ui.checkbox(&mut wowpow, "Set wowpow");
-                        self.toy.as_mut().unwrap().set_wowpow(wowpow);
+                        c.set_wowpow(wowpow);
                     }
-    
-                    self.slider(ui, &Skylander::get_xp, &Skylander::set_xp, 0, 197500u32, "Set xp: ");
-                    self.slider(ui, &Skylander::get_level, &Skylander::set_level, 1, 20, "Set level: ");
-                    self.slider(ui, &Skylander::get_gold, &Skylander::set_gold, 0, 0xFFFFu16, "Set gold: ");
-                    self.hat_dropdown(ui);                
-                    
-                } else if let Toy::Vehicle(_) = figure {
-                    // Vehicle behavior
-                }
-                
-                self.set_bytes_widget(ui);
+                    SkyApp::slider(c, ui, &Character::get_xp, &Character::set_xp, 0, 197500u32, "Set xp: ");
+                    SkyApp::slider(c, ui, &Character::get_level, &Character::set_level, 1, 20, "Set level: ");
+                    SkyApp::slider(c, ui, &Character::get_gold, &Character::set_gold, 0, 0xFFFFu16, "Set gold: ");
+                    SkyApp::hat_dropdown(c, ui);
+                },
+                _ => ()
+            };
 
-                if ui.button("Reset figure").clicked() {
-                    self.toy.as_mut().unwrap().clear();
+            // General Behavior
+            match &mut self.toy {
+                Optional::None => (),
+                _ => {
+                    self.set_bytes_widget(ui);
+
+                    if ui.button("Reset figure").clicked() {
+                        execute_generic(&mut self.toy, &|x| { x.clear(); });
+                    }
                 }
             }
         });
