@@ -34,7 +34,7 @@ impl Character {
 
     /// Unlocks upgrades according to bitmap (least significant bit to most significant)
     pub fn set_upgrades(&mut self, bitmap: u8) {
-        const fn upgrade_loc(i: usize) -> usize {AREA_BOUNDS[i].0 + BLOCK_SIZE};
+        const fn upgrade_loc(i: usize) -> usize {AREA_BOUNDS[i].0 + BLOCK_SIZE}
         self.skylander.write_ones();
 
         let upgrade_path = self.get_upgrade_path();
@@ -63,7 +63,7 @@ impl Character {
 
     /// Gets the upgrades of the figure as a bitmap
     pub fn get_upgrades(&self) -> u8 {
-        const fn upgrade_loc(i: usize) -> usize {AREA_BOUNDS[i].0 + BLOCK_SIZE};
+        const fn upgrade_loc(i: usize) -> usize {AREA_BOUNDS[i].0 + BLOCK_SIZE}
         let area = if self.skylander.used()[AREA_BOUNDS[0].0 / BLOCK_SIZE] { 0 } else { 1 };
         let mut bytes = [0u8; 2];
         bytes.copy_from_slice(&self.skylander.data()[upgrade_loc(area) .. upgrade_loc(area) + 2]);

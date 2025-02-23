@@ -288,7 +288,7 @@ impl Skylander for SkylanderBase {
             key_a.copy_from_slice(sector_trailer);
 
             for j in 0..BLOCKS_PER_SECTOR - 1 {
-                let block = (i * BLOCKS_PER_SECTOR + j);
+                let block = i * BLOCKS_PER_SECTOR + j;
                 let mut copy = [0u8; BLOCK_SIZE];
                 copy.copy_from_slice(&data[block * BLOCK_SIZE..(block + 1) * BLOCK_SIZE]);
                 card.authenticate_with_key(block as u8, &key_a, KeyType::KeyA)?;
