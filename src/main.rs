@@ -3,6 +3,7 @@ mod skyfigures;
 mod skyvariants;
 mod skyhats;
 mod app;
+mod character;
 
 use app::SkyApp;
 

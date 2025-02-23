@@ -173,6 +173,8 @@ pub enum Variant {
     LegendaryJughead = 0x3406,
     LegendarySkull = 0x3408,
     UltimateKaosTrap = 0x351F,
+
+    Unknown
 }
 
 impl TryFrom<u16> for Variant {
@@ -180,8 +182,8 @@ impl TryFrom<u16> for Variant {
 
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         match VARIANT_INDEX.get(&value) {
-            Some(&exp) => Ok(exp),
-            None => Err("Invalid Variant value")
+            Some(&var) => Ok(var),
+            None => Ok(Variant::Unknown)
         }
     }
 }
