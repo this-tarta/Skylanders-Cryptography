@@ -301,13 +301,9 @@ impl App for SkyApp {
                     match &self.toy {
                         Optional::None => (),
                         _ => {
-                            if let Some(path) = FileDialog::new().save_file() {
-                                let selected_file = path.display().to_string();
-                                execute_generic(&mut self.toy, &|x| {
-                                    let _ = x.save_to_nfc();
-                                });
-                                self.curr_file = Some(selected_file);
-                            }
+                            execute_generic(&mut self.toy, &|x| {
+                                let _ = x.save_to_nfc();
+                            });
                         }
                     }
                 }
