@@ -624,8 +624,8 @@ fn calculate_key_a(data: &mut [u8; NUM_BYTES]) {
 
 #[test]
 fn dump_decrypted_skylander_from_file() {
-    const FILE_1: &str = "../Skylanders/thump_truck.sky"; // change this
-    const FILE_2: &str = "../Skylanders/thump_truck_dec.sky";
+    const FILE_1: &str = "../Skylanders/hot_streak_shield_upg.sky"; // change this
+    const FILE_2: &str = "../Skylanders/hot_streak_shield_upg_dec.sky";
 
     let sky1 = SkylanderBase::from_filename(FILE_1).expect("couldn't read file");
     let mut file_2 = File::create(FILE_2).expect("couldn't create file");
@@ -634,8 +634,8 @@ fn dump_decrypted_skylander_from_file() {
 
 #[test]
 fn encrypt_decrypted_skylander_dump() {
-    const FILE_1: &str = "../Skylanders/sun_runner_dec.sky"; // change this
-    const FILE_2: &str = "../Skylanders/sun_runner2.sky";
+    const FILE_1: &str = "../Skylanders/hot_streak_shield_upg_dec.sky"; // change this
+    const FILE_2: &str = "../Skylanders/hot_streak2.sky";
 
     let mut file_1 = File::open(FILE_1).expect("Couldn't open file");
     let mut data = [0u8; NUM_BYTES];

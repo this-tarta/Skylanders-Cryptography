@@ -346,6 +346,14 @@ impl App for SkyApp {
                 },
                 Optional::Vehicle(v) => {
                     SkyApp::slider(v, ui, &vehicle::Vehicle::get_gears, &vehicle::Vehicle::set_gears, 0u16, 33000, "Set gears: ");
+                    {
+                        let getter = |x: &u8| { *x };
+                        let setter = |x: &mut u8, y: u8| { *x = y; };
+                        let (mut shield, mut weapon) = v.get_upgrades();
+                        SkyApp::slider(&mut shield, ui, &getter, &setter, 0u8, 5, "Set shield: ");
+                        SkyApp::slider(&mut weapon, ui, &getter, &setter, 0u8, 5, "Set weapon: ");
+                        v.set_upgrades(shield, weapon);
+                    }
                     SkyApp::performance_upg_dropdown(v, ui);
                 },
                 _ => ()
