@@ -622,25 +622,27 @@ fn calculate_key_a(data: &mut [u8; NUM_BYTES]) {
 //     assert_eq!(&data_1, &data_2);
 // }
 
-// #[test]
-// fn dump_decrypted_skylander_from_file() {
-//     const FILE_1: &str = "../Skylanders/hot_streak.sky"; // change this
-//     const FILE_2: &str = "../Skylanders/hot_streak_dec.sky";
+#[test]
+fn dump_decrypted_skylander_from_file() {
+    const FILE_1: &str = "../Skylanders/thump_truck.sky"; // change this
+    const FILE_2: &str = "../Skylanders/thump_truck_dec.sky";
 
-//     let sky1 = Skylander::from_filename(FILE_1).expect("couldn't read file");
-//     let mut file_2 = File::create(FILE_2).expect("couldn't create file");
-//     file_2.write_all(& *sky1.data).expect("Couldn't write file 2");
-// }
+    let sky1 = SkylanderBase::from_filename(FILE_1).expect("couldn't read file");
+    let mut file_2 = File::create(FILE_2).expect("couldn't create file");
+    file_2.write_all(& *sky1.data).expect("Couldn't write file 2");
+}
 
-// #[test]
-// fn encrypt_decrypted_skylander_dump() {
-//     const FILE_1: &str = "../Skylanders/hot_streak_dec.sky"; // change this
-//     const FILE_2: &str = "../Skylanders/hot_streak2.sky";
+#[test]
+fn encrypt_decrypted_skylander_dump() {
+    const FILE_1: &str = "../Skylanders/sun_runner_dec.sky"; // change this
+    const FILE_2: &str = "../Skylanders/sun_runner2.sky";
 
-//     let mut file_1 = File::open(FILE_1).expect("Couldn't open file");
-//     let mut data = [0u8; NUM_BYTES];
-//     file_1.read_exact(&mut data).expect("Could not read file");
-
-//     let sky1 = Skylander {data: Box::new(data), modified: true, used: [true; NUM_BLOCKS] };
-//     sky1.save_to_filename(FILE_2).expect("couldn't write to file");
-// }
+    let mut file_1 = File::open(FILE_1).expect("Couldn't open file");
+    let mut data = [0u8; NUM_BYTES];
+    file_1.read_exact(&mut data).expect("Could not read file");
+    let used = update_used(&data);
+    let figure = Toy::Unknown(0u16);
+    let variant = Variant::Unknown;
+    let sky1 = SkylanderBase {data: Box::new(data), modified: true, used, figure, variant };
+    sky1.save_to_filename(FILE_2).expect("couldn't write to file");
+}

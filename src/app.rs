@@ -165,6 +165,26 @@ impl SkyApp {
         c.set_hat(hat);
     }
 
+    fn performance_upg_dropdown(v: &mut vehicle::Vehicle, ui: &mut Ui) {
+        use vehicle::PerformanceUpgrade::*;
+        let orig_upg = match v.get_performance_upgrade() {
+            Ok(h) => h,
+            _ => First
+        };
+        let mut upg = orig_upg;
+        ComboBox::new("perf. upgrade dropdown", "Select a performance upgrade")
+            .selected_text(upg.to_string())
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut upg, First, First.to_string());
+                ui.selectable_value(&mut upg, Second, Second.to_string());
+                ui.selectable_value(&mut upg, Third, Third.to_string());
+                ui.selectable_value(&mut upg, Fourth, Fourth.to_string());
+            });
+        if orig_upg != upg {
+            v.set_performance_upgrade(upg);
+        }
+    }
+
     fn set_bytes_widget(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
             ComboBox::new("bytes size", "")
@@ -261,7 +281,7 @@ impl App for SkyApp {
                             if let Some(path) = FileDialog::new().save_file() {
                                 let selected_file = path.display().to_string();
                                 execute_generic(&mut self.toy, &|x| {
-                                    let _ = x.save_to_filename(&self.curr_file.as_ref().unwrap());
+                                    let _ = x.save_to_filepath(&path);
                                 });
                                 self.curr_file = Some(selected_file);
                             }
@@ -323,6 +343,10 @@ impl App for SkyApp {
                     SkyApp::slider(c, ui, &Character::get_level, &Character::set_level, 1, 20, "Set level: ");
                     SkyApp::slider(c, ui, &Character::get_gold, &Character::set_gold, 0, 0xFFFFu16, "Set gold: ");
                     SkyApp::hat_dropdown(c, ui);
+                },
+                Optional::Vehicle(v) => {
+                    SkyApp::slider(v, ui, &vehicle::Vehicle::get_gears, &vehicle::Vehicle::set_gears, 0u16, 33000, "Set gears: ");
+                    SkyApp::performance_upg_dropdown(v, ui);
                 },
                 _ => ()
             };
