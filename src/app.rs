@@ -165,14 +165,16 @@ impl SkyApp {
         c.set_hat(hat);
     }
 
-    fn performance_upg_dropdown(v: &mut vehicle::Vehicle, ui: &mut Ui) {
-        use vehicle::PerformanceUpgrade::*;
-        let orig_upg = match v.get_performance_upgrade() {
+    fn mod_dropdown(v: &mut vehicle::Vehicle, ui: &mut Ui, label: &str,
+            getter: &dyn Fn(&vehicle::Vehicle) -> Result<vehicle::Mod, &str>,
+            setter: &dyn Fn(&mut vehicle::Vehicle, vehicle::Mod)) {
+        use vehicle::Mod::*;
+        let orig_upg = match getter(v) {
             Ok(h) => h,
             _ => First
         };
         let mut upg = orig_upg;
-        ComboBox::new("perf. upgrade dropdown", "Select a performance upgrade")
+        ComboBox::new(label, label)
             .selected_text(upg.to_string())
             .show_ui(ui, |ui| {
                 ui.selectable_value(&mut upg, First, First.to_string());
@@ -181,7 +183,7 @@ impl SkyApp {
                 ui.selectable_value(&mut upg, Fourth, Fourth.to_string());
             });
         if orig_upg != upg {
-            v.set_performance_upgrade(upg);
+            setter(v, upg)
         }
     }
 
@@ -354,7 +356,12 @@ impl App for SkyApp {
                         SkyApp::slider(&mut weapon, ui, &getter, &setter, 0u8, 5, "Set weapon: ");
                         v.set_upgrades(shield, weapon);
                     }
-                    SkyApp::performance_upg_dropdown(v, ui);
+                    SkyApp::mod_dropdown(v, ui, "Select performance upgrade:", 
+                        &vehicle::Vehicle::get_performance_upgrade, &vehicle::Vehicle::set_performance_upgrade);
+                    SkyApp::mod_dropdown(v, ui, "Select specialty mod:", 
+                        &vehicle::Vehicle::get_speciality_mod, &vehicle::Vehicle::set_speciality_mod);
+                    SkyApp::mod_dropdown(v, ui, "Select horn:", 
+                        &vehicle::Vehicle::get_horn, &vehicle::Vehicle::set_horn);
                 },
                 _ => ()
             };
